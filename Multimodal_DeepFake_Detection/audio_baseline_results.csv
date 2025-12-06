@@ -1,0 +1,4 @@
+,accuracy,precision,recall,f1,roc_auc,training_time,best_val_acc
+Wav2Vec2,0.9231,0.9231,1.0,0.96,0.9167,44.8556,92.3077
+HuBERT,0.9231,0.9231,1.0,0.96,0.25,36.5347,92.3077
+Custom_CNN,0.9231,0.9231,1.0,0.96,0.75,35.3128,92.3077

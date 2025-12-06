@@ -1,0 +1,2 @@
+accuracy,precision,recall,f1,roc_auc,training_time,best_val_acc
+1.0,1.0,1.0,1.0,0.0,214.09734225273132,100.0

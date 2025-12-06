@@ -1,0 +1,46 @@
+# Model files (large)
+*.pth
+*.h5
+*.pt
+*.ckpt
+*.weights
+*.pkl
+
+# Dataset folders
+Deepfake*/
+DeepFake*/
+dfd_*/
+DFF/
+**/dataset*/
+**/Dataset*/
+
+# Media files
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.avi
+*.wav
+*.mp3
+*.flac
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+#exe
+*.exe

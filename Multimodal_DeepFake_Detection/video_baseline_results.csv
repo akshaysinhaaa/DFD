@@ -1,0 +1,4 @@
+,accuracy,precision,recall,f1,roc_auc,training_time
+3D_ResNet,0.9869,1.0,0.975,0.9873,0.9998,597.6412
+LSTM_Frame,0.9542,0.9398,0.975,0.9571,0.9933,709.8836
+Temporal_Diff,0.8627,0.9041,0.825,0.8627,0.9447,685.4162
