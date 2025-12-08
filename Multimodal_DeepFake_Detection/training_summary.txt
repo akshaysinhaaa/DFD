@@ -1,0 +1,47 @@
+
+============================================================
+MULTIMODAL DEEPFAKE DETECTION - TRAINING SUMMARY
+============================================================
+
+Model Configuration:
+-------------------
+• Architecture: ViT-B/16 + Wav2Vec2-Large + Cross-Modal Transformer
+• Total Parameters: 415,427,466
+• Trainable Parameters: 14,199,818 (3.4%)
+• Datasets: 9 (DeepfakeImages, FaceForensics++, Celeb-DF V2, FakeAVCeleb, etc.)
+• Training Samples: 42,442
+• Test Samples: 37,102
+
+Training Summary:
+----------------
+• Epochs Completed: 10/10
+• Final Training Loss: 0.7985
+• Final Training Accuracy: 92.86%
+
+Best Test Performance:
+---------------------
+• Best Epoch: 9
+• Test Accuracy: 92.46%
+• Test Precision: 92.86%
+• Test Recall: 99.26%
+• Test F1 Score: 95.95%
+
+Epoch-by-Epoch Results:
+----------------------
+Epoch  Train Loss  Train Acc   Test Acc   Precision   Recall      F1
+---------------------------------------------------------------------------
+1      0.2565      91.62       92.23      92.55       99.38       95.84
+2      0.4662      91.98       92.25      92.73       99.17       95.84
+3      0.6794      92.14       92.31      92.67       99.32       95.88
+4      0.7649      92.22       92.34      92.72       99.29       95.89
+5      0.7946      92.44       92.30      92.73       99.23       95.87
+6      0.8027      92.59       92.43      92.71       99.42       95.95
+7      0.8015      92.64       92.40      92.88       99.17       95.92
+8      0.8008      92.76       92.27      92.97       98.89       95.84
+9      0.7979      92.82       92.46      92.86       99.26       95.95
+10     0.7985      92.86       92.46      92.86       99.26       95.95
+
+============================================================
+Model saved to: best_multimodal_all_datasets.pth
+Report generated: 2025-12-08 16:37:06
+============================================================
