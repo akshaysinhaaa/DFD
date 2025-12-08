@@ -1,0 +1,167 @@
+% Training and Loss Functions
+
+\subsection{Classification}
+
+The classifier is a 3-layer MLP that predicts real/fake labels:
+
+\begin{equation}
+\begin{aligned}
+\mathbf{h}_1 &= \text{ReLU}(\mathbf{z}\mathbf{W}_{c1} + \mathbf{b}_{c1}) \in \mathbb{R}^{256} \\
+\mathbf{h}_2 &= \text{ReLU}(\mathbf{h}_1\mathbf{W}_{c2} + \mathbf{b}_{c2}) \in \mathbb{R}^{64} \\
+\hat{y} &= \sigma(\mathbf{h}_2\mathbf{W}_{c3} + \mathbf{b}_{c3}) \in [0, 1]
+\end{aligned}
+\end{equation}
+
+where $\sigma$ is the sigmoid function. Dropout with rate 0.3 is applied after each layer.
+
+\subsection{Loss Functions}
+
+\subsubsection{Classification Loss}
+Binary cross-entropy loss for real/fake classification:
+
+\begin{equation}
+\mathcal{L}_{\text{cls}} = -\frac{1}{N}\sum_{i=1}^{N} \left[y_i \log \hat{y}_i + (1-y_i) \log (1-\hat{y}_i)\right]
+\end{equation}
+
+\subsubsection{Total Loss}
+The complete objective combines classification and domain losses:
+
+\begin{equation}
+\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{cls}} + \alpha(p) \mathcal{L}_{\text{domain}}
+\end{equation}
+
+The gradient reversal ensures that minimizing $\mathcal{L}_{\text{total}}$ simultaneously:
+\begin{enumerate}
+    \item Improves classification accuracy (via $\mathcal{L}_{\text{cls}}$)
+    \item Learns domain-invariant features (via GRL and $\mathcal{L}_{\text{domain}}$)
+\end{enumerate}
+
+\subsection{Training Procedure}
+
+\subsubsection{Optimization}
+We use AdamW optimizer with:
+\begin{itemize}
+    \item Learning rate: $\eta = 1 \times 10^{-4}$
+    \item Weight decay: $\lambda = 1 \times 10^{-4}$
+    \item $\beta_1 = 0.9$, $\beta_2 = 0.999$
+\end{itemize}
+
+Learning rate scheduling via cosine annealing:
+
+\begin{equation}
+\eta_t = \eta_{\min} + \frac{1}{2}(\eta_{\max} - \eta_{\min})\left(1 + \cos\left(\frac{t\pi}{T}\right)\right)
+\end{equation}
+
+where $t$ is the current epoch, $T$ is total epochs, $\eta_{\max}=1\times10^{-4}$, 
+and $\eta_{\min}=1\times10^{-6}$.
+
+\subsubsection{Mixed Precision Training}
+We employ automatic mixed precision (AMP) with FP16 to reduce memory consumption 
+and accelerate training. Gradient scaling prevents underflow:
+
+\begin{equation}
+\nabla_{\text{scaled}} = s \cdot \nabla_{\text{fp16}}
+\end{equation}
+
+where $s$ is the loss scale factor, dynamically adjusted during training.
+
+\subsubsection{Gradient Accumulation}
+To simulate larger batch sizes with limited memory, we accumulate gradients over 
+$k=4$ mini-batches before updating:
+
+\begin{equation}
+\theta_{t+1} = \theta_t - \eta \frac{1}{k}\sum_{j=1}^{k} \nabla_\theta \mathcal{L}^{(j)}
+\end{equation}
+
+Effective batch size: $B_{\text{eff}} = B \times k = 2 \times 4 = 8$.
+
+\subsubsection{Training Algorithm}
+
+\begin{algorithm}[t]
+\caption{Multimodal Deepfake Detection Training}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Training set $\mathcal{D}$, epochs $E$, batch size $B$
+\STATE \textbf{Initialize:} Encoders, Transformer, GRL, Discriminator, Classifier
+\FOR{epoch $e = 1$ to $E$}
+    \STATE $p \leftarrow e / E$ \COMMENT{Training progress}
+    \STATE $\alpha \leftarrow \alpha_{\text{schedule}}(p)$ \COMMENT{Update GRL alpha}
+    \FOR{each batch $\mathcal{B} \subset \mathcal{D}$}
+        \STATE Extract tokens: $\{\mathbf{v}_i, \mathbf{a}_i, \mathbf{t}_i, \mathbf{m}_i\}$
+        \STATE Add modality embeddings: $\mathbf{H}_0 \leftarrow$ concat + $\mathbf{E}_{\text{mod}}$
+        \STATE Apply Transformer: $\mathbf{H}_L \leftarrow \text{Transformer}(\mathbf{H}_0)$
+        \STATE Extract CLS: $\mathbf{z} \leftarrow \mathbf{H}_L[0, :]$
+        \STATE Classification: $\hat{y} \leftarrow \text{Classifier}(\mathbf{z})$
+        \STATE Domain prediction: $\hat{d} \leftarrow \text{DomainDiscrim}(\text{GRL}_\alpha(\mathbf{z}))$
+        \STATE Compute $\mathcal{L}_{\text{cls}}$, $\mathcal{L}_{\text{domain}}$
+        \STATE $\mathcal{L} \leftarrow \mathcal{L}_{\text{cls}} + \alpha \mathcal{L}_{\text{domain}}$
+        \STATE Backpropagate and update parameters
+    \ENDFOR
+    \STATE Evaluate on validation set
+    \STATE Save checkpoint if best accuracy
+\ENDFOR
+\STATE \textbf{Return:} Best model checkpoint
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Implementation Details}
+
+\subsubsection{Hardware}
+All experiments conducted on NVIDIA RTX A6000 GPU (48GB VRAM) with:
+\begin{itemize}
+    \item CUDA 11.8
+    \item PyTorch 2.0.1
+    \item Mixed precision training enabled
+\end{itemize}
+
+\subsubsection{Hyperparameters}
+\begin{table}[h]
+\centering
+\caption{Hyperparameter Configuration}
+\label{tab:hyperparams}
+\begin{tabular}{lc}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Model dimension ($d$) & 512 \\
+Transformer layers ($L$) & 4 \\
+Attention heads ($h$) & 8 \\
+FFN dimension & 2048 \\
+Dropout rate & 0.3 \\
+Batch size ($B$) & 2 \\
+Gradient accumulation ($k$) & 4 \\
+Learning rate ($\eta$) & $1 \times 10^{-4}$ \\
+Weight decay ($\lambda$) & $1 \times 10^{-4}$ \\
+Epochs ($E$) & 10 \\
+Max GRL alpha ($\alpha_{\max}$) & 0.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Data Preprocessing}
+\begin{itemize}
+    \item \textbf{Images}: Resized to $224 \times 224$, normalized with ImageNet statistics
+    \item \textbf{Audio}: Resampled to 16kHz, segmented into 10s chunks
+    \item \textbf{Video}: Sample $F=5$ uniformly spaced frames per clip
+    \item \textbf{Text}: Truncated/padded to 256 tokens maximum
+\end{itemize}
+
+\subsubsection{Data Augmentation}
+Training augmentation includes:
+\begin{itemize}
+    \item Random horizontal flip (p=0.5)
+    \item Random rotation ($\pm 10°$)
+    \item Color jitter (brightness, contrast, saturation $\pm 20\%$)
+    \item Temporal jittering for video frames
+\end{itemize}
+
+\subsubsection{Freezing Strategy}
+To reduce computational cost and leverage pretrained knowledge:
+\begin{itemize}
+    \item Freeze ViT backbone (only train projection layer)
+    \item Freeze Wav2Vec2 backbone (only train projection)
+    \item Freeze Sentence-BERT (only train projection)
+    \item Train Transformer, GRL, Discriminator, Classifier from scratch
+\end{itemize}
+
+This reduces trainable parameters from 500M+ to ~50M, enabling efficient training 
+while maintaining strong performance.

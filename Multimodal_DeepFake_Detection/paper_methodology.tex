@@ -1,0 +1,179 @@
+% Methodology Section - Part 2
+
+\subsection{Modality-Specific Encoders}
+
+\subsubsection{Visual Encoder}
+For visual input, we employ Vision Transformer (ViT-B/16) as our backbone. 
+Given $F$ video frames $\mathbf{v} \in \mathbb{R}^{F \times 3 \times H \times W}$:
+
+\begin{equation}
+\mathbf{V} = \text{ViT}(\mathbf{v}) \in \mathbb{R}^{F \times N_p \times d_{\text{vit}}}
+\end{equation}
+
+where $N_p$ is the number of patches per frame and $d_{\text{vit}}=768$ is the 
+ViT hidden dimension. We project to common dimension $d=512$:
+
+\begin{equation}
+\mathbf{V}' = \mathbf{V}\mathbf{W}_v + \mathbf{b}_v \in \mathbb{R}^{F \times N_p \times d}
+\end{equation}
+
+For computational efficiency, we average-pool over patches:
+
+\begin{equation}
+\mathbf{v}_{\text{token}} = \frac{1}{N_p}\sum_{j=1}^{N_p} \mathbf{V}'_{:,j,:} \in \mathbb{R}^{F \times d}
+\end{equation}
+
+This produces $F$ visual tokens, one per frame.
+
+\subsubsection{Audio Encoder}
+We employ Wav2Vec2-Large for audio feature extraction. 
+Given audio waveform $\mathbf{a} \in \mathbb{R}^{T}$:
+
+\begin{equation}
+\mathbf{A} = \text{Wav2Vec2}(\mathbf{a}) \in \mathbb{R}^{N_a \times d_{\text{w2v}}}
+\end{equation}
+
+where $N_a$ is the number of audio tokens and $d_{\text{w2v}}=1024$. We project:
+
+\begin{equation}
+\mathbf{a}_{\text{token}} = \mathbf{A}\mathbf{W}_a + \mathbf{b}_a \in \mathbb{R}^{N_a \times d}
+\end{equation}
+
+For videos, we segment audio into $K=5$ chunks and encode separately, producing 
+$K$ audio tokens.
+
+\subsubsection{Text Encoder}
+Text transcripts are encoded using Sentence-BERT:
+
+\begin{equation}
+\mathbf{t}_{\text{token}} = \text{SBERT}(\mathbf{t}) \in \mathbb{R}^{1 \times d}
+\end{equation}
+
+\subsubsection{Metadata Encoder}
+Metadata features are encoded via categorical embeddings and MLP:
+
+\begin{equation}
+\mathbf{m}_{\text{token}} = \text{MLP}(\text{Embed}(\mathbf{m})) \in \mathbb{R}^{1 \times d}
+\end{equation}
+
+\subsection{Cross-Modal Fusion Transformer}
+
+\subsubsection{Token Preparation}
+We concatenate all available modality tokens:
+
+\begin{equation}
+\mathbf{H}_0 = [\mathbf{z}_{\text{cls}}; \mathbf{v}_{\text{token}}; \mathbf{a}_{\text{token}}; 
+\mathbf{t}_{\text{token}}; \mathbf{m}_{\text{token}}] \in \mathbb{R}^{N \times d}
+\end{equation}
+
+where $\mathbf{z}_{\text{cls}} \in \mathbb{R}^{1 \times d}$ is a learnable CLS token.
+
+\subsubsection{Modality Embeddings}
+To distinguish modalities, we add learned embeddings:
+
+\begin{equation}
+\mathbf{H}'_0 = \mathbf{H}_0 + \mathbf{E}_{\text{mod}}
+\end{equation}
+
+where $\mathbf{E}_{\text{mod}} \in \mathbb{R}^{4 \times d}$ contains embeddings 
+for visual, audio, text, and metadata modalities.
+
+\subsubsection{Multi-Head Self-Attention}
+We apply $L=4$ Transformer encoder layers. Each layer $\ell$ computes:
+
+\begin{equation}
+\mathbf{Q}^{(\ell)} = \mathbf{H}_{\ell-1}\mathbf{W}_Q^{(\ell)}, \quad 
+\mathbf{K}^{(\ell)} = \mathbf{H}_{\ell-1}\mathbf{W}_K^{(\ell)}, \quad 
+\mathbf{V}^{(\ell)} = \mathbf{H}_{\ell-1}\mathbf{W}_V^{(\ell)}
+\end{equation}
+
+Multi-head attention with $h=8$ heads:
+
+\begin{equation}
+\text{MultiHead}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)\mathbf{W}_O
+\end{equation}
+
+where each head computes:
+
+\begin{equation}
+\text{head}_i = \text{Attention}(\mathbf{Q}\mathbf{W}_Q^i, \mathbf{K}\mathbf{W}_K^i, \mathbf{V}\mathbf{W}_V^i)
+\end{equation}
+
+\begin{equation}
+\text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{softmax}\left(\frac{\mathbf{Q}\mathbf{K}^T}{\sqrt{d_k}}\right)\mathbf{V}
+\end{equation}
+
+The attention mechanism learns relationships between all tokens, enabling cross-modal 
+reasoning. Attention weights between visual and audio tokens capture audio-visual synchronization.
+
+\subsubsection{Feed-Forward Network}
+Each Transformer layer includes a position-wise FFN:
+
+\begin{equation}
+\text{FFN}(\mathbf{x}) = \text{GELU}(\mathbf{x}\mathbf{W}_1 + \mathbf{b}_1)\mathbf{W}_2 + \mathbf{b}_2
+\end{equation}
+
+Complete layer operation with residual connections:
+
+\begin{equation}
+\begin{aligned}
+\mathbf{H}'_\ell &= \text{LayerNorm}(\mathbf{H}_{\ell-1} + \text{MultiHead}(\mathbf{H}_{\ell-1})) \\
+\mathbf{H}_\ell &= \text{LayerNorm}(\mathbf{H}'_\ell + \text{FFN}(\mathbf{H}'_\ell))
+\end{aligned}
+\end{equation}
+
+\subsubsection{Fused Representation}
+The final fused representation is extracted from the CLS token:
+
+\begin{equation}
+\mathbf{z} = \mathbf{H}_L[0, :] \in \mathbb{R}^d
+\end{equation}
+
+This representation encodes information from all modalities and their interactions.
+
+\subsection{Domain-Adversarial Training}
+
+\subsubsection{Gradient Reversal Layer}
+To learn domain-invariant features, we employ a Gradient Reversal Layer (GRL). 
+The GRL is an identity function during forward pass:
+
+\begin{equation}
+\text{GRL}_\alpha(\mathbf{z}) = \mathbf{z}
+\end{equation}
+
+but reverses gradients during backpropagation:
+
+\begin{equation}
+\frac{\partial \text{GRL}_\alpha}{\partial \mathbf{z}} = -\alpha \mathbf{I}
+\end{equation}
+
+where $\alpha$ is a scaling factor scheduled from 0 to $\alpha_{\max}=0.5$.
+
+\subsubsection{Domain Discriminator}
+The domain discriminator is a 2-layer MLP predicting the source domain:
+
+\begin{equation}
+\begin{aligned}
+\mathbf{h}_d &= \text{ReLU}(\text{GRL}_\alpha(\mathbf{z})\mathbf{W}_{d1} + \mathbf{b}_{d1}) \\
+\mathbf{p}_d &= \text{softmax}(\mathbf{h}_d\mathbf{W}_{d2} + \mathbf{b}_{d2}) \in \mathbb{R}^9
+\end{aligned}
+\end{equation}
+
+\subsubsection{Adversarial Loss}
+The domain classification loss is:
+
+\begin{equation}
+\mathcal{L}_{\text{domain}} = -\frac{1}{N}\sum_{i=1}^{N} \sum_{k=0}^{8} \mathbb{1}[d_i = k] \log p_{d,k}^{(i)}
+\end{equation}
+
+By reversing gradients, the encoder learns features that confuse the domain 
+discriminator, making them domain-invariant.
+
+\subsubsection{Alpha Scheduling}
+We gradually increase $\alpha$ during training:
+
+\begin{equation}
+\alpha(p) = \frac{2\alpha_{\max}}{1 + \exp(-10p)} - \alpha_{\max}
+\end{equation}
+
+where $p = \frac{\text{epoch}}{\text{max\_epochs}} \in [0, 1]$ is training progress.
