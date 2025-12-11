@@ -16,16 +16,21 @@ FaceForensics++*/
 FakeAVCeleb*/
 **/dataset*/
 **/Dataset*/
+YouTube Faces With Facial Keypoints*/
+140k Real and Fake Faces*/
 
 # Media files
 *.jpg
 *.jpeg
-*.png
+# *.png
 *.mp4
 *.avi
 *.wav
 *.mp3
 *.flac
+*.md
+*.txt
+
 
 # Python cache
 __pycache__/
